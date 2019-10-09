@@ -15,14 +15,14 @@ ram_buffer="4G"
 #
 # This script performs the following actions:
 #
-# 1. Extract the "Google Photos" subdirectory from tgz archive(s) defined as
-#    $archive, over top of the $extract_path subdir.
+# 1. Extract the tgz archive(s) defined as ${archive}, over top of the
+#    ${extract_path} subdir.
 # 2. Run jdupes to replace all duplicate files with hardlinks.
-# 3. Create a snapshot of the dataset defined as $dataset with the name defined
-#    as $unix_seconds.
+# 3. Create a snapshot of the dataset defined as ${dataset} with the name defined
+#    as ${unix_seconds}.
 # 4. Run jdupes to delete all duplicate hardlinks.
 # 5. Run gsutil rsync to push new and changed files to the storage bucket
-#    defined as $gcs_bucket in Google Cloud Storage.
+#    defined as ${gcs_bucket} in Google Cloud Storage.
 # 6. TODO: Amazon S3.
 # 7. Rollback the snapshot to the (hardlink-)deduped state.
 #
@@ -32,18 +32,19 @@ ram_buffer="4G"
 #
 # Requirements:
 #
-# 1. bash: preferred shell compatible with this script.
-# 2. mbuffer: optimize the speed of extract, especially on systems with a lot
+#  1. bash: preferred shell compatible with this script.
+#  2. mbuffer: optimize the speed of extract, especially on systems with a lot
 #    of RAM and slow disks.
-# 3. pigz: optimize the speed of extract, especially on systems with a lot of
+#  3. pigz: optimize the speed of extract, especially on systems with a lot of
 #    CPU threads.
-# 4. tar: required for extraction of the data.
-# 5. gsutil: required to push new and changed data to GCS.
-# 6. Persistent authentication key for GCS.
-# 7. Passwordless SSH key to operate remote ZFS commands as root, if you want
+#  4. find: enumerate the archives for the extract loop.
+#  5. tar: required for extraction of the data.
+#  6. gsutil: required to push new and changed data to GCS.
+#  7. Persistent authentication key for GCS.
+#  8. Passwordless SSH key to operate remote ZFS commands as root, if you want
 #    to maximize automation.
-# 8. Google Takeout archive(s) must be in tgz (tar) format.
-# 9. All tgz archives in the path will be used, so you probably want to place
+#  9. Google Takeout archive(s) must be in tgz (tar) format.
+# 10. All tgz archives in the path will be used, so you probably want to place
 #    them in a unique subdir.
 #
 
