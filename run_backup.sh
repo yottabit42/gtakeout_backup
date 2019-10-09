@@ -58,7 +58,7 @@ done
 
 time jdupes -LNr "${extract_path}"
 
-time ssh "${host_id}" zfs snapshot "${dataset}/${unix_seconds}"
+time ssh "${host_id}" zfs snapshot "${dataset}@${unix_seconds}"
 
 time jdupes -dHNr "${extract_path}"
 
@@ -66,6 +66,6 @@ time jdupes -dHNr "${extract_path}"
 
 # 6. TODO.
 
-time ssh "${host_id}" zfs rollback "${dataset}/${unix_seconds}"
+time ssh "${host_id}" zfs rollback "${dataset}@${unix_seconds}"
 
 echo "Completed successfully at $(date)."
