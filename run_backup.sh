@@ -1,8 +1,19 @@
 #!/bin/bash
-# Revision 191009a by Jacob McDonald <jacob@mcawesome.org>.
+# Revision 191009b by Jacob McDonald <jacob@mcawesome.org>.
 
 # Exit on any failure. Print every command. Require set variables.
 set -euxo pipefail
+
+# gsutil needs UTF-8 set as the default encoding or it fails to understand UTF-8-
+# encoded filenames.
+export LANG="en_US.UTF-8"
+export LC_COLLATE="en_US.UTF-8"
+export LC_CTYPE="en_US.UTF-8"
+export LC_MESSAGES="en_US.UTF-8"
+export LC_MONETARY="en_US.UTF-8"
+export LC_NUMERIC="en_US.UTF-8"
+export LC_TIME="en_US.UTF-8"
+export LC_ALL=
 
 archive_path="/mnt/jacob.mcdonald/Junk"
 dataset="vol0/google_photos_backup"
@@ -40,12 +51,11 @@ ram_buffer="4G"
 #  4. find: enumerate the archives for the extract loop.
 #  5. tar: required for extraction of the data.
 #  6. gsutil: required to push new and changed data to GCS.
-#  7. convmv: required to convert ASCII to UTF-8 for gsutil compatibility.
-#  8. Persistent authentication key for GCS.
-#  9. Passwordless SSH key to operate remote ZFS commands as root, if you want
+#  7. Persistent authentication key for GCS.
+#  8. Passwordless SSH key to operate remote ZFS commands as root, if you want
 #     to maximize automation.
-# 10. Google Takeout archive(s) must be in tgz (tar) format.
-# 11. All tgz archives in the path will be used, so you probably want to place
+#  9. Google Takeout archive(s) must be in tgz (tar) format.
+# 10. All tgz archives in the path will be used, so you probably want to place
 #     them in a unique subdir.
 ###
 
@@ -56,8 +66,6 @@ for f in $(find "${archive_path}" -iname "*.tgz"); do \
     unpigz -c | \
       tar xOC "${extract_path}" -f - > /dev/null
 done
-
-time convmv -rf ascii -t utf-8 --preserve-mtimes "${extract_path}"
 
 time jdupes -LNr "${extract_path}"
 
