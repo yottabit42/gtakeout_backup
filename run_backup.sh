@@ -1,5 +1,5 @@
 #!/bin/bash
-# Revision 191008a by Jacob McDonald <jacob@mcawesome.org>.
+# Revision 191009a by Jacob McDonald <jacob@mcawesome.org>.
 
 # Exit on any failure. Print every command. Require set variables.
 set -euxo pipefail
@@ -27,8 +27,8 @@ ram_buffer="4G"
 # 7. Rollback the snapshot to the (hardlink-)deduped state.
 #
 # The reason for #3 and #4 above is to cost-optimize the remote storage by not
-# uploading duplicate data, which is not deduplicated on the remote. #7 reverts
-# the snapshot to restore the hardlink steady-state.
+# uploading duplicate data, which is not deduplicated on the remote. #7 rolls
+# back the snapshot to restore the hardlink steady-state.
 #
 # Requirements:
 #
@@ -40,11 +40,12 @@ ram_buffer="4G"
 #  4. find: enumerate the archives for the extract loop.
 #  5. tar: required for extraction of the data.
 #  6. gsutil: required to push new and changed data to GCS.
-#  7. Persistent authentication key for GCS.
-#  8. Passwordless SSH key to operate remote ZFS commands as root, if you want
+#  7. convmv: required to convert ASCII to UTF-8 for gsutil compatibility.
+#  8. Persistent authentication key for GCS.
+#  9. Passwordless SSH key to operate remote ZFS commands as root, if you want
 #     to maximize automation.
-#  9. Google Takeout archive(s) must be in tgz (tar) format.
-# 10. All tgz archives in the path will be used, so you probably want to place
+# 10. Google Takeout archive(s) must be in tgz (tar) format.
+# 11. All tgz archives in the path will be used, so you probably want to place
 #     them in a unique subdir.
 ###
 
@@ -55,6 +56,8 @@ for f in $(find "${archive_path}" -iname "*.tgz"); do \
     unpigz -c | \
       tar xOC "${extract_path}" -f - > /dev/null
 done
+
+time convmv -rf ascii -t utf-8 --preserve-mtimes "${extract_path}"
 
 time jdupes -LNr "${extract_path}"
 
