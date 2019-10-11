@@ -83,11 +83,11 @@ export LC_ALL=
 echo "Started at $(date)."
 
 echo "Starting archive extract."
-#for f in $(find "${archive_path}" -iname "*.tgz"); do \
-#  time mbuffer -i "${f}" -o - -m "${ram_buffer}" | \
-#    unpigz -c | \
-#      tar xOC "${extract_path}" -f - > /dev/null
-#done
+for f in $(find "${archive_path}" -iname "*.tgz"); do \
+  time mbuffer -i "${f}" -o - -m "${ram_buffer}" | \
+    unpigz -c | \
+      tar xOC "${extract_path}" -f - > /dev/null
+done
 echo "Finished archive extract."
 
 echo "Replacing duplicates with hardlinks."
