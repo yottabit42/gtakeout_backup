@@ -1,11 +1,40 @@
-#!/bin/bash
-# Revision 191009b by Jacob McDonald <jacob@mcawesome.org>.
+#!/usr/bin/env bash
+# Revision 191010a by Jacob McDonald <jacob@mcawesome.org>.
 
 # Exit on any failure. Print every command. Require set variables.
-set -euxo pipefail
+set -euo pipefail
 
-# gsutil needs UTF-8 set as the default encoding or it fails to understand UTF-8-
-# encoded filenames.
+# Debug by echoing all commands.
+#set -x
+
+###
+# Define variables. Uncomment each one to use. For safety, the script will exit
+# if any undeclared variables are called.
+#
+# This is where you place the tgz Takeout archives.
+#archive_path=""  # e.g.: "/mnt/takeout"
+#
+# This is the name of the ZFS dataset used for the backup.
+#dataset=""  # e.g.: "tank/google_photos_backup"
+#
+# This is where you want the Take archive extracted.
+#extract_path=""  # e.g.: "/mnt/google_photos_backup"
+#
+# This is the name of your GCS bucket for backup push.
+#gcs_bucket=""  # e.g.: "gs://my-bucket-name"
+#
+# This is the SSH login of the ZFS host. See README.
+#host_id=""  # e.g.: "root@192.168.1.10"
+#
+# This uses the current unix seconds as a timestamp for the ZFS snapshot.
+unix_seconds=$(date +%s)
+#
+# This sets the RAM allocation for mbuffer. Default is 1G.
+ram_buffer="1G"  # e.g.: "1G"
+###
+
+# gsutil needs UTF-8 set as the default encoding or it fails to understand
+# UTF-8-encoded filenames.
 export LANG="en_US.UTF-8"
 export LC_COLLATE="en_US.UTF-8"
 export LC_CTYPE="en_US.UTF-8"
@@ -14,14 +43,6 @@ export LC_MONETARY="en_US.UTF-8"
 export LC_NUMERIC="en_US.UTF-8"
 export LC_TIME="en_US.UTF-8"
 export LC_ALL=
-
-archive_path="/mnt/jacob.mcdonald/Junk"
-dataset="vol0/google_photos_backup"
-extract_path="/mnt/google_photos_backup/"
-gcs_bucket=""
-host_id="root@172.16.42.25"
-unix_seconds=$(date +%s)
-ram_buffer="4G"
 
 ###
 # This script performs the following actions:
@@ -61,22 +82,42 @@ ram_buffer="4G"
 
 echo "Started at $(date)."
 
-for f in $(find "${archive_path}" -iname "*.tgz"); do \
-  time mbuffer -i "${f}" -o - -m "${ram_buffer}" | \
-    unpigz -c | \
-      tar xOC "${extract_path}" -f - > /dev/null
-done
+echo "Starting archive extract."
+#for f in $(find "${archive_path}" -iname "*.tgz"); do \
+#  time mbuffer -i "${f}" -o - -m "${ram_buffer}" | \
+#    unpigz -c | \
+#      tar xOC "${extract_path}" -f - > /dev/null
+#done
+echo "Finished archive extract."
 
+echo "Replacing duplicates with hardlinks."
 time jdupes -LNr "${extract_path}"
+echo "Finished replacing duplicates with hardlinks."
 
+echo "Creating ZFS snapshot."
 time ssh "${host_id}" zfs snapshot "${dataset}@${unix_seconds}"
+echo "Finished creating ZFS snapshot."
 
+echo "Replacing deleting duplicate hardlinks."
 time jdupes -dHNr "${extract_path}"
+echo "Finished replacing duplicate hardlinks."
 
-# 5. TODO.
+# Comment out this block when testing is complete.
+echo "Dry-run pushing to GCS because mistakes cost money."
+time /usr/local/bin/gsutil -m rsync -rCdnx "gsutil_rsync\.log" \
+  "${extract_path}" "${gcs_backup}"
+echo "Finished dry-run pushing to GCS."
+
+# Uncomment this block when testing is complete.
+#echo "Pushing to GCS."
+#time /usr/local/bin/gsutil -m rsync -rCdx "gsutil_rsync\.log" \
+#  "${extract_path}" "${gcs_bucket}"
+#echo "Finished pushing to GCS."
 
 # 6. TODO.
 
+echo "Rolling back ZFS snapshot."
 time ssh "${host_id}" zfs rollback "${dataset}@${unix_seconds}"
+echo "Finished rolling back ZFS snapshot."
 
 echo "Completed successfully at $(date)."
