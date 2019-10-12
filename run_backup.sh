@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Revision 191010a by Jacob McDonald <jacob@mcawesome.org>.
+# Revision 191011a by Jacob McDonald <jacob@mcawesome.org>.
 
 # Exit on any failure. Print every command. Require set variables.
 set -euo pipefail
@@ -7,28 +7,39 @@ set -euo pipefail
 # Debug by echoing all commands.
 #set -x
 
+# TODO: use ${gcs_bucket} and ${rclone_remote} to optionally run these services.
+
 ###
-# Define variables. Uncomment each one to use. For safety, the script will exit
-# if any undeclared variables are called.
-#
+# tl;dr: unpacks Google Takeout archive, dedupes, creates ZFS snapshot, pushes
+# backup to Google Cloud Storage and/or arbitrary rclone remote. Full details are
+# contained below the variable definitions block.
+###
+
+###
+# Define empty variables below.
+###
+
 # This is where you place the tgz Takeout archives.
-#archive_path=""  # e.g.: "/mnt/takeout"
-#
+archive_path=""  # e.g.: "/mnt/takeout"
+
 # This is the name of the ZFS dataset used for the backup.
-#dataset=""  # e.g.: "tank/google_photos_backup"
-#
+dataset=""  # e.g.: "tank/google_photos_backup"
+
 # This is where you want the Take archive extracted.
-#extract_path=""  # e.g.: "/mnt/google_photos_backup"
-#
+extract_path=""  # e.g.: "/mnt/google_photos_backup"
+
 # This is the name of your GCS bucket for backup push.
-#gcs_bucket=""  # e.g.: "gs://my-bucket-name"
-#
+gcs_bucket=""  # e.g.: "gs://my-bucket-name"
+
+# This is the name of your rclone remote definition for backup push.
+rclone_remote=""  # e.g.: "glacier:my-bucket-name"
+
 # This is the SSH login of the ZFS host. See README.
-#host_id=""  # e.g.: "root@192.168.1.10"
-#
+host_id=""  # e.g.: "root@192.168.1.10"
+
 # This uses the current unix seconds as a timestamp for the ZFS snapshot.
 unix_seconds=$(date +%s)
-#
+
 # This sets the RAM allocation for mbuffer. Default is 1G.
 ram_buffer="1G"  # e.g.: "1G"
 ###
@@ -55,13 +66,16 @@ export LC_ALL=
 # 4. Run jdupes to delete all duplicate hardlinks.
 # 5. Run gsutil rsync to push new and changed files to the storage bucket
 #    defined as ${gcs_bucket} in Google Cloud Storage.
-# 6. TODO: Amazon S3.
+# 6. Run rclone to push new and changed files to the remote defined as
+#    ${rclone_remote}.
 # 7. Rollback the snapshot to the (hardlink-)deduped state.
 #
 # The reason for #3 and #4 above is to cost-optimize the remote storage by not
 # uploading duplicate data, which is not deduplicated on the remote. #7 rolls
 # back the snapshot to restore the hardlink steady-state.
-#
+###
+
+###
 # Requirements:
 #
 #  1. bash: preferred shell compatible with this script.
@@ -73,10 +87,13 @@ export LC_ALL=
 #  5. tar: required for extraction of the data.
 #  6. gsutil: required to push new and changed data to GCS.
 #  7. Persistent authentication key for GCS.
-#  8. Passwordless SSH key to operate remote ZFS commands as root, if you want
-#     to maximize automation.
-#  9. Google Takeout archive(s) must be in tgz (tar) format.
-# 10. All tgz archives in the path will be used, so you probably want to place
+#  8. rclone: required to push to other remotes, such as Amazon S3 or Glacier.
+#  9. Persistent authentication key for rclone remote, e.g., AWS.
+# 10. Passwordless SSH key to operate remote ZFS commands as root, if you want
+#     to maximize automation. Can also use explicit passwordless definitions in
+#     sudoers file to allow ZFS commands as non-root.
+# 11. Google Takeout archive(s) must be in tgz (tar) format.
+# 12. All tgz archives in the path will be used, so you probably want to place
 #     them in a unique subdir.
 ###
 
@@ -94,13 +111,13 @@ echo "Replacing duplicates with hardlinks."
 time jdupes -LNr "${extract_path}"
 echo "Finished replacing duplicates with hardlinks."
 
-echo "Creating ZFS snapshot."
+echo "Creating ZFS snapshot ${dataset}@${unix_seconds}."
 time ssh "${host_id}" zfs snapshot "${dataset}@${unix_seconds}"
 echo "Finished creating ZFS snapshot."
 
-echo "Replacing deleting duplicate hardlinks."
+echo "Delete duplicate hardlinks."
 time jdupes -dHNr "${extract_path}"
-echo "Finished replacing duplicate hardlinks."
+echo "Finished deleting duplicate hardlinks."
 
 # Comment out this block when testing is complete.
 echo "Dry-run pushing to GCS because mistakes cost money."
@@ -114,9 +131,17 @@ echo "Finished dry-run pushing to GCS."
 #  "${extract_path}" "${gcs_bucket}"
 #echo "Finished pushing to GCS."
 
-# 6. TODO.
+# Comment out this block when testing is complete.
+#echo "Pushing to rclone remote."
+time rclone sync -P --dry-run "${extract_path}" "${rclone_remote}"
+#echo "Finished pushing to rclone remote."
 
-echo "Rolling back ZFS snapshot."
+# Uncomment this block when testing is complete.
+#echo "Pushing to rclone remote."
+#time rclone sync -P "${extract_path}" "${rclone_remote}"
+#echo "Finished pushing to rclone remote."
+
+echo "Rolling back ZFS snapshot ${dataset}@${unix_seconds}."
 time ssh "${host_id}" zfs rollback "${dataset}@${unix_seconds}"
 echo "Finished rolling back ZFS snapshot."
 
