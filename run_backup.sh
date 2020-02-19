@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Revision 191011a by Jacob McDonald <jacob@mcawesome.org>.
+# Revision 200218a by Jacob McDonald <jacob@mcawesome.org>.
 
 # Exit on any failure. Print every command. Require set variables.
 set -euo pipefail
@@ -7,53 +7,36 @@ set -euo pipefail
 # Debug by echoing all commands.
 #set -x
 
-# TODO: use ${gcs_bucket} and ${rclone_remote} to optionally run these services.
-
 ###
 # tl;dr: unpacks Google Takeout archive, dedupes, creates ZFS snapshot, pushes
 # backup to Google Cloud Storage and/or arbitrary rclone remote. Full details are
 # contained below the variable definitions block.
+#
+# TODO: use ${gcs_bucket} and ${rclone_remote} to optionally run these services.
 ###
 
 ###
 # Define empty variables below.
 ###
-
 # This is where you place the tgz Takeout archives.
-archive_path=""  # e.g.: "/mnt/takeout"
-
+archive_path=""  # e.g.: "/mnt/takeout_archives"
 # This is the name of the ZFS dataset used for the backup.
-dataset=""  # e.g.: "tank/google_photos_backup"
-
-# This is where you want the Take archive extracted.
-extract_path=""  # e.g.: "/mnt/google_photos_backup"
-
+dataset=""  # e.g.: "tank/takeout_backup"
+# This is where you want the Takeout archive extracted.
+extract_path=""  # e.g.: "/mnt/takeout_backup"
 # This is the name of your GCS bucket for backup push.
 gcs_bucket=""  # e.g.: "gs://my-bucket-name"
-
-# This is the name of your rclone remote definition for backup push.
+# This is the rclone remote target, e.g., AWS S3 Vault ARN.
 rclone_remote=""  # e.g.: "glacier:my-bucket-name"
-
+# This sets the number of simultaneous upload streams for rclone.
+rclone_streams=""  # e.g.: "4"
 # This is the SSH login of the ZFS host. See README.
 host_id=""  # e.g.: "root@192.168.1.10"
-
 # This uses the current unix seconds as a timestamp for the ZFS snapshot.
 unix_seconds=$(date +%s)
-
-# This sets the RAM allocation for mbuffer. Default is 1G.
-ram_buffer="1G"  # e.g.: "1G"
+# This sets the number of archives to unpack in parallel. See 'man parallel'.
+parallelism=""  # e.g.: "2" or "+4" or "-4" or "50%"
 ###
-
-# gsutil needs UTF-8 set as the default encoding or it fails to understand
-# UTF-8-encoded filenames.
-export LANG="en_US.UTF-8"
-export LC_COLLATE="en_US.UTF-8"
-export LC_CTYPE="en_US.UTF-8"
-export LC_MESSAGES="en_US.UTF-8"
-export LC_MONETARY="en_US.UTF-8"
-export LC_NUMERIC="en_US.UTF-8"
-export LC_TIME="en_US.UTF-8"
-export LC_ALL=
 
 ###
 # This script performs the following actions:
@@ -73,14 +56,12 @@ export LC_ALL=
 # The reason for #3 and #4 above is to cost-optimize the remote storage by not
 # uploading duplicate data, which is not deduplicated on the remote. #7 rolls
 # back the snapshot to restore the hardlink steady-state.
-###
-
-###
+#
 # Requirements:
 #
 #  1. bash: preferred shell compatible with this script.
-#  2. mbuffer: optimize the speed of extract, especially on systems with a lot
-#     of RAM and slow disks.
+#  2. parallel: optimize the speed of extract, especially on systems with a lot
+#     of CPU threads and fast disks/SSD.
 #  3. pigz: optimize the speed of extract, especially on systems with a lot of
 #     CPU threads.
 #  4. find: enumerate the archives for the extract loop.
@@ -97,14 +78,23 @@ export LC_ALL=
 #     them in a unique subdir.
 ###
 
+# gsutil needs UTF-8 set as the default encoding or it fails to understand
+# UTF-8-encoded filenames.
+export LANG="en_US.UTF-8"
+export LC_COLLATE="en_US.UTF-8"
+export LC_CTYPE="en_US.UTF-8"
+export LC_MESSAGES="en_US.UTF-8"
+export LC_MONETARY="en_US.UTF-8"
+export LC_NUMERIC="en_US.UTF-8"
+export LC_TIME="en_US.UTF-8"
+export LC_ALL=
+
 echo "Started at $(date)."
 
 echo "Starting archive extract."
-for f in $(find "${archive_path}" -iname "*.tgz"); do \
-  time mbuffer -i "${f}" -o - -m "${ram_buffer}" | \
-    unpigz -c | \
-      tar xOC "${extract_path}" -f - > /dev/null
-done
+find "${archive_path}" -iname "*.tgz" | \
+  parallel --eta --env extract_path -j ${parallelism} -n 1 --will-cite \
+    "unpigz -c {} | tar xOC "${extract_path}" -f - > /dev/null"
 echo "Finished archive extract."
 
 echo "Replacing duplicates with hardlinks."
@@ -115,7 +105,7 @@ echo "Creating ZFS snapshot ${dataset}@${unix_seconds}."
 time ssh "${host_id}" zfs snapshot "${dataset}@${unix_seconds}"
 echo "Finished creating ZFS snapshot."
 
-echo "Delete duplicate hardlinks."
+echo "Deleting duplicate hardlinks."
 time jdupes -dHNr "${extract_path}"
 echo "Finished deleting duplicate hardlinks."
 
@@ -132,14 +122,16 @@ echo "Finished dry-run pushing to GCS."
 #echo "Finished pushing to GCS."
 
 # Comment out this block when testing is complete.
-#echo "Pushing to rclone remote."
-time rclone sync -P --dry-run "${extract_path}" "${rclone_remote}"
-#echo "Finished pushing to rclone remote."
+echo "Pushing to rclone remote target."
+time rclone sync -P --multi-thread-streams ${rclone_streams} --dry-run \
+  "${extract_path}" "${rclone_remote}"
+echo "Finished pushing to rclone remote target."
 
 # Uncomment this block when testing is complete.
-#echo "Pushing to rclone remote."
-#time rclone sync -P "${extract_path}" "${rclone_remote}"
-#echo "Finished pushing to rclone remote."
+#echo "Pushing to rclone remote target."
+#time rclone sync -P --multi-thread-streams ${rclone_streams} \
+#  "${extract_path}" "${rclone_remote}"
+#echo "Finished pushing to rclone remote target."
 
 echo "Rolling back ZFS snapshot ${dataset}@${unix_seconds}."
 time ssh "${host_id}" zfs rollback "${dataset}@${unix_seconds}"
