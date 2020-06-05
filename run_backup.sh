@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Revision 200218a by Jacob McDonald <jacob@mcawesome.org>.
+# Revision 200604a by Jacob McDonald <jacob@mcawesome.org>.
 
 # Exit on any failure. Print every command. Require set variables.
 set -euo pipefail
@@ -22,6 +22,8 @@ set -euo pipefail
 archive_path=""  # e.g.: "/mnt/takeout_archives"
 # This is the name of the ZFS dataset used for the backup.
 dataset=""  # e.g.: "tank/takeout_backup"
+# This is the source for the backup push to cloud.
+backup_root="/mnt/cloud_push"  # e.g.: "/mnt/cloud_push" 
 # This is where you want the Takeout archive extracted.
 extract_path=""  # e.g.: "/mnt/takeout_backup"
 # This is the name of your GCS bucket for backup push.
@@ -112,25 +114,25 @@ echo "Finished deleting duplicate hardlinks."
 # Comment out this block when testing is complete.
 echo "Dry-run pushing to GCS because mistakes cost money."
 time /usr/local/bin/gsutil -m rsync -rCdnx "gsutil_rsync\.log" \
-  "${extract_path}" "${gcs_backup}"
+  "${backup_root}" "${gcs_backup}"
 echo "Finished dry-run pushing to GCS."
 
 # Uncomment this block when testing is complete.
 #echo "Pushing to GCS."
 #time /usr/local/bin/gsutil -m rsync -rCdx "gsutil_rsync\.log" \
-#  "${extract_path}" "${gcs_bucket}"
+#  "${backup_root}" "${gcs_bucket}"
 #echo "Finished pushing to GCS."
 
 # Comment out this block when testing is complete.
 echo "Pushing to rclone remote target."
 time rclone sync -P --multi-thread-streams ${rclone_streams} --dry-run \
-  "${extract_path}" "${rclone_remote}"
+  "${backup_root}" "${rclone_remote}"
 echo "Finished pushing to rclone remote target."
 
 # Uncomment this block when testing is complete.
 #echo "Pushing to rclone remote target."
 #time rclone sync -P --multi-thread-streams ${rclone_streams} \
-#  "${extract_path}" "${rclone_remote}"
+#  "${backup_root}" "${rclone_remote}"
 #echo "Finished pushing to rclone remote target."
 
 echo "Rolling back ZFS snapshot ${dataset}@${unix_seconds}."
