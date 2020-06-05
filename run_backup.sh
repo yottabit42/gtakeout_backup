@@ -114,7 +114,7 @@ echo "Finished deleting duplicate hardlinks."
 # Comment out this block when testing is complete.
 echo "Dry-run pushing to GCS because mistakes cost money."
 time /usr/local/bin/gsutil -m rsync -rCdnx "gsutil_rsync\.log" \
-  "${backup_root}" "${gcs_backup}"
+  "${backup_root}" "${gcs_bucket}"
 echo "Finished dry-run pushing to GCS."
 
 # Uncomment this block when testing is complete.
