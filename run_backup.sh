@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Revision 200604c by Jacob McDonald <jacob@mcawesome.org>.
+# Revision 200604d by Jacob McDonald <jacob@mcawesome.org>.
 
 # Exit on any failure. Print every command. Require set variables.
 set -euo pipefail
@@ -95,7 +95,7 @@ echo "Started at $(date)."
 
 echo "Starting archive extract."
 find "${archive_path}" -iname "*.tgz" | \
-  parallel --eta --env extract_path -j ${parallelism} -n 1 --will-cite \
+  parallel --bar --eta --env extract_path -j ${parallelism} -n 1 --will-cite \
     "unpigz -c {} | tar xOC "${extract_path}" -f - > /dev/null"
 echo "Finished archive extract."
 
