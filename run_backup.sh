@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Revision 200604a by Jacob McDonald <jacob@mcawesome.org>.
+# Revision 200604c by Jacob McDonald <jacob@mcawesome.org>.
 
 # Exit on any failure. Print every command. Require set variables.
 set -euo pipefail
@@ -125,7 +125,7 @@ echo "Finished dry-run pushing to GCS."
 
 # Comment out this block when testing is complete.
 echo "Pushing to rclone remote target."
-time rclone sync -P --multi-thread-streams ${rclone_streams} --dry-run \
+time rclone sync -P \
   "${backup_root}" "${rclone_remote}"
 echo "Finished pushing to rclone remote target."
 
