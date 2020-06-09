@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Revision 200604d by Jacob McDonald <jacob@mcawesome.org>.
+# Revision 200605a by Jacob McDonald <jacob@mcawesome.org>.
 
 # Exit on any failure. Print every command. Require set variables.
 set -euo pipefail
@@ -16,14 +16,16 @@ set -euo pipefail
 ###
 
 ###
-# Define empty variables below.
+# Define or change variables below.
 ###
 # This is where you place the tgz Takeout archives.
 archive_path=""  # e.g.: "/mnt/takeout_archives"
-# This is the name of the ZFS dataset used for the backup.
-dataset=""  # e.g.: "tank/takeout_backup"
+# These are the ZFS dataset names used for the dedupe.
+datasets=("")  # e.g.: ("tank/dataset1" "tank/dataset2")
+# These are the mountpoint s used for the dedupe.
+dataset_mounts=("")  # e.g.: ("/mnt/dataset1" "/mnt/dataset2")
 # This is the source for the backup push to cloud.
-backup_root="/mnt/cloud_push"  # e.g.: "/mnt/cloud_push" 
+backup_root=""  # e.g.: "/mnt/cloud_push"
 # This is where you want the Takeout archive extracted.
 extract_path=""  # e.g.: "/mnt/takeout_backup"
 # This is the name of your GCS bucket for backup push.
@@ -31,13 +33,13 @@ gcs_bucket=""  # e.g.: "gs://my-bucket-name"
 # This is the rclone remote target, e.g., AWS S3 Vault ARN.
 rclone_remote=""  # e.g.: "glacier:my-bucket-name"
 # This sets the number of simultaneous upload streams for rclone.
-rclone_streams=""  # e.g.: "4"
+rclone_streams="4"  # e.g.: "10"
 # This is the SSH login of the ZFS host. See README.
 host_id=""  # e.g.: "root@192.168.1.10"
 # This uses the current unix seconds as a timestamp for the ZFS snapshot.
 unix_seconds=$(date +%s)
 # This sets the number of archives to unpack in parallel. See 'man parallel'.
-parallelism=""  # e.g.: "2" or "+4" or "-4" or "50%"
+parallelism="3"  # e.g.: "2" or "+4" or "-4" or "50%"
 ###
 
 ###
@@ -45,15 +47,17 @@ parallelism=""  # e.g.: "2" or "+4" or "-4" or "50%"
 #
 # 1. Extract the tgz archive(s) defined as ${archive}, over top of the
 #    ${extract_path} subdir.
-# 2. Run jdupes to replace all duplicate files with hardlinks.
-# 3. Create a snapshot of the dataset defined as ${dataset} with the name defined
-#    as ${unix_seconds}.
-# 4. Run jdupes to delete all duplicate hardlinks.
-# 5. Run gsutil rsync to push new and changed files to the storage bucket
-#    defined as ${gcs_bucket} in Google Cloud Storage.
-# 6. Run rclone to push new and changed files to the remote defined as
-#    ${rclone_remote}.
-# 7. Rollback the snapshot to the (hardlink-)deduped state.
+# 2. Run jdupes to replace all duplicate files with hardlinks against all paths
+#    defined in the ${dataset_mounts} array.
+# 3. Create a snapshot of the datasets defined in the ${datasets} array, with
+#    the name defined as ${unix_seconds}.
+# 4. Run jdupes to delete all duplicate hardlinks against all paths defined in
+#    the ${dataset_mounts} array.
+# 5. Run gsutil rsync to push new and changed files from ${backup_root} to the
+     # storage bucket defined as ${gcs_bucket} in Google Cloud Storage.
+# 6. Run rclone to push new and changed files from ${backup_root} to the remote
+#    defined as ${rclone_remote}.
+# 7. Rollback the snapshots to the (hardlink-)deduped state.
 #
 # The reason for #3 and #4 above is to cost-optimize the remote storage by not
 # uploading duplicate data, which is not deduplicated on the remote. #7 rolls
@@ -98,45 +102,62 @@ find "${archive_path}" -iname "*.tgz" | \
   parallel --bar --eta --env extract_path -j ${parallelism} -n 1 --will-cite \
     "unpigz -c {} | tar xOC "${extract_path}" -f - > /dev/null"
 echo "Finished archive extract."
+echo; echo --; echo
 
-echo "Replacing duplicates with hardlinks."
-time jdupes -LNr "${extract_path}"
-echo "Finished replacing duplicates with hardlinks."
+for f in ${dataset_mounts[@]}; do
+  echo "Replacing duplicates with hardlinks: ${f}."
+  time jdupes -LNr "${f}"
+  echo "Finished replacing duplicates with hardlinks."
+  echo; echo --; echo
+done
 
-echo "Creating ZFS snapshot ${dataset}@${unix_seconds}."
-time ssh "${host_id}" zfs snapshot "${dataset}@${unix_seconds}"
-echo "Finished creating ZFS snapshot."
+for f in ${datasets[@]}; do
+  echo "Creating ZFS snapshot ${f}@${unix_seconds}."
+  time ssh "${host_id}" zfs snapshot "${f}@${unix_seconds}"
+  echo "Finished creating ZFS snapshot."
+  echo; echo --; echo
+done
 
-echo "Deleting duplicate hardlinks."
-time jdupes -dHNr "${extract_path}"
-echo "Finished deleting duplicate hardlinks."
+for f in ${dataset_mounts[@]}; do
+  echo "Deleting duplicate hardlinks: ${f}."
+  time jdupes -dHNr "${f}"
+  echo "Finished deleting duplicate hardlinks."
+  echo; echo --; echo
+done
 
 # Comment out this block when testing is complete.
 echo "Dry-run pushing to GCS because mistakes cost money."
-time /usr/local/bin/gsutil -m rsync -rCdnx "gsutil_rsync\.log" \
+time /usr/local/bin/gsutil -m rsync -Cdnrx "gsutil_rsync\.log" \
   "${backup_root}" "${gcs_bucket}"
 echo "Finished dry-run pushing to GCS."
+echo; echo --; echo
 
 # Uncomment this block when testing is complete.
 #echo "Pushing to GCS."
-#time /usr/local/bin/gsutil -m rsync -rCdx "gsutil_rsync\.log" \
+#time /usr/local/bin/gsutil -m rsync -Cdnrx "gsutil_rsync\.log" \
 #  "${backup_root}" "${gcs_bucket}"
 #echo "Finished pushing to GCS."
+#echo; echo --; echo
 
 # Comment out this block when testing is complete.
-echo "Pushing to rclone remote target."
-time rclone sync -P \
+echo "Dry-run pushing to rclone remote target because mistakes cost money."
+time rclone sync -Pc --check-first --dry-run \
   "${backup_root}" "${rclone_remote}"
 echo "Finished pushing to rclone remote target."
+echo; echo --; echo
 
 # Uncomment this block when testing is complete.
 #echo "Pushing to rclone remote target."
-#time rclone sync -P --multi-thread-streams ${rclone_streams} \
+#time rclone sync -Pc --check-first --transfers ${rclone_streams} \
 #  "${backup_root}" "${rclone_remote}"
 #echo "Finished pushing to rclone remote target."
+#echo; echo --; echo
 
-echo "Rolling back ZFS snapshot ${dataset}@${unix_seconds}."
-time ssh "${host_id}" zfs rollback "${dataset}@${unix_seconds}"
-echo "Finished rolling back ZFS snapshot."
+for f in ${datasets[@]}; do
+  echo "Rolling back ZFS snapshot ${f}@${unix_seconds}."
+  time ssh "${host_id}" zfs rollback "${f}@${unix_seconds}"
+  echo "Finished rolling back ZFS snapshot."
+  echo; echo --; echo
+done
 
 echo "Completed successfully at $(date)."
