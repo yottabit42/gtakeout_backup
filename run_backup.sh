@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Revision 200605a by Jacob McDonald <jacob@mcawesome.org>.
+# Revision 200608a by Jacob McDonald <jacob@mcawesome.org>.
 
 # Exit on any failure. Print every command. Require set variables.
 set -euo pipefail
@@ -134,7 +134,7 @@ echo; echo --; echo
 
 # Uncomment this block when testing is complete.
 #echo "Pushing to GCS."
-#time /usr/local/bin/gsutil -m rsync -Cdnrx "gsutil_rsync\.log" \
+#time /usr/local/bin/gsutil -m rsync -Cdrx "gsutil_rsync\.log" \
 #  "${backup_root}" "${gcs_bucket}"
 #echo "Finished pushing to GCS."
 #echo; echo --; echo
