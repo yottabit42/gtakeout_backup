@@ -18,7 +18,7 @@ set -euo pipefail
 ###
 # This script performs the following actions:
 #
-# 1. Extract the tgz archive(s) defined as ${archive}, over top of the
+# 1. Extract the zip archive(s) defined as ${archive}, over top of the
 #    ${extract_path} subdir.
 # 2. Run jdupes to replace all duplicate files with hardlinks against all paths
 #    defined in the ${dataset_mounts} array.
@@ -41,19 +41,17 @@ set -euo pipefail
 #  1. bash: preferred shell compatible with this script.
 #  2. parallel: optimize the speed of extract, especially on systems with a lot
 #     of CPU threads and fast disks/SSD.
-#  3. pigz: optimize the speed of extract, especially on systems with a lot of
-#     CPU threads.
+#  3. unzip: decompress and unpack zip archives.
 #  4. find: enumerate the archives for the extract loop.
-#  5. tar: required for extraction of the data.
-#  6. gsutil: required to push new and changed data to GCS.
-#  7. Persistent authentication key for GCS.
-#  8. rclone: required to push to other remotes, such as Amazon S3 or Glacier.
-#  9. Persistent authentication key for rclone remote, e.g., AWS.
-# 10. Passwordless SSH key to operate remote ZFS commands as root, if you want
+#  5. gsutil: required to push new and changed data to GCS.
+#  6. Persistent authentication key for GCS.
+#  7. rclone: required to push to other remotes, such as Amazon S3 or Glacier.
+#  8. Persistent authentication key for rclone remote, e.g., AWS.
+#  9. Passwordless SSH key to operate remote ZFS commands as root, if you want
 #     to maximize automation. Can also use explicit passwordless definitions in
 #     sudoers file to allow ZFS commands as non-root.
-# 11. Google Takeout archive(s) must be in tgz (tar) format.
-# 12. All tgz archives in the path will be used, so you probably want to place
+# 10. Google Takeout archive(s) must be in zip format.
+# 11. All zip archives in the path will be used, so you probably want to place
 #     them in a unique subdir.
 ###
 
@@ -97,9 +95,9 @@ export LC_ALL=
 
 extract() {
   echo "Starting archive extract."
-  find "${archive_path}" -iname "*.tgz" | \
+  find "${archive_path}" -iname "*.zip" | \
     parallel --bar --eta --env extract_path -j ${parallelism} -n 1 \
-      --will-cite "unpigz -c {} | tar xOC "${extract_path}" -f - > /dev/null"
+      --will-cite "unzip -o -d "${extract_path} {} > /dev/null"
   echo "Finished archive extract."
   echo; echo --; echo
 }
