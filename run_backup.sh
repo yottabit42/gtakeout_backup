@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Revision 200610b by Jacob McDonald <jacob@mcawesome.org>.
+# Revision 200624a by Jacob McDonald <jacob@mcawesome.org>.
 
-# Exit on any failure. Print every command. Require set variables.
+# Exit on any failure. Require set variables.
 set -euo pipefail
 
 # Debug by echoing all commands.
@@ -10,7 +10,7 @@ set -euo pipefail
 ###
 # tl;dr: unpacks Google Takeout archive, dedupes, creates ZFS snapshot, pushes
 # backup to Google Cloud Storage and/or arbitrary rclone remote. Full details are
-# contained below the variable definitions block.
+# contained below, before the variable definitions block.
 #
 # TODO: use ${gcs_bucket} and ${rclone_remote} to optionally run these services.
 ###
