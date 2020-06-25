@@ -97,7 +97,7 @@ extract() {
   echo "Starting archive extract."
   find "${archive_path}" -iname "*.zip" | \
     parallel --bar --eta --env extract_path -j ${parallelism} -n 1 \
-      --will-cite "unzip -o -d "${extract_path} {} > /dev/null"
+      --will-cite "unzip -o -d "${extract_path}" {} > /dev/null"
   echo "Finished archive extract."
   echo; echo --; echo
 }
