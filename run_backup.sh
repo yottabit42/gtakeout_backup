@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Revision 200624a by Jacob McDonald <jacob@mcawesome.org>.
+# Revision 200801a by Jacob McDonald <jacob@mcawesome.org>.
 
 # Exit on any failure. Require set variables.
 set -euo pipefail
@@ -99,7 +99,7 @@ extract() {
   echo "Starting archive extract."
   find "${archive_path}" -iname "*.tgz" | \
     parallel --bar --eta --env extract_path -j ${parallelism} -n 1 \
-      --will-cite "unpigz -c {} | tar xOC "${extract_path}" -f - > /dev/null"
+      --will-cite "unpigz -c {} | tar xC "${extract_path}" -f - > /dev/null"
   echo "Finished archive extract."
   echo; echo --; echo
 }
