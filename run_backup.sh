@@ -142,7 +142,7 @@ gcs_run() {
   echo "Pushing to GCS."
   time /usr/local/bin/gsutil -m rsync -Cdr "${backup_root}" "${gcs_bucket}"
   echo "Finished pushing to GCS."
-  echo echo; echo --; echo
+  echo; echo --; echo
 }
 
 rclone_dryrun() {
