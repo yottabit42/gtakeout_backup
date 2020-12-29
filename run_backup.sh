@@ -147,7 +147,7 @@ gcs_run() {
 
 rclone_dryrun() {
   echo "Dry-run pushing to rclone remote target because mistakes cost money."
-  time rclone sync -Pc --check-first --dry-run \
+  time rclone sync -Pc --dry-run --fast-list \
     "${backup_root}" "${rclone_remote}"
   echo "Finished pushing to rclone remote target."
   echo; echo --; echo
@@ -155,7 +155,7 @@ rclone_dryrun() {
 
 rclone_run() {
   echo "Pushing to rclone remote target."
-  time rclone sync -Pc --check-first --transfers ${rclone_streams} \
+  time rclone sync -Pc --fast-list --transfers ${rclone_streams} \
     "${backup_root}" "${rclone_remote}"
   echo "Finished pushing to rclone remote target."
   echo; echo --; echo
