@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Revision 200801a by Jacob McDonald <jacob@mcawesome.org>.
+# Revision 201228a by Jacob McDonald <jacob@mcawesome.org>.
 
 # Exit on any failure. Require set variables.
 set -euo pipefail
