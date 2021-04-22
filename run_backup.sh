@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Revision 201228a by Jacob McDonald <jacob@mcawesome.org>.
+# Revision 210421a by Jacob McDonald <jacob@mcawesome.org>.
 
 # Exit on any failure. Require set variables.
 set -euo pipefail
@@ -107,7 +107,7 @@ extract() {
 dedupe_with_hardlinks() {
   for f in ${dataset_mounts[@]}; do
     echo "Replacing duplicates with hardlinks: ${f}."
-    time jdupes -LNr "${f}"
+    time jdupes -LNOr "${f}"
     echo "Finished replacing duplicates with hardlinks."
     echo; echo --; echo
   done
@@ -125,7 +125,7 @@ snapshot() {
 delete_dupe_hardlinks() {
   for f in ${dataset_mounts[@]}; do
     echo "Deleting duplicate hardlinks: ${f}."
-    time jdupes -dHNr "${f}"
+    time jdupes -dHNOr "${f}"
     echo "Finished deleting duplicate hardlinks."
     echo; echo --; echo
   done
