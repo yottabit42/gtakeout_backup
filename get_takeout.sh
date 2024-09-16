@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 #
 
+if [[ ! $(which wget) ]]; then
+  echo "Please install 'wget' first, e.g., 'sudo apt install wget'. Exiting."
+  exit
+fi
 if [[ "${1}" && "${2}" && "${3}" ]]; then
   if [[ ! "${1}" =~ ^[0-9]+$ ]]; then
     echo "<NUM_DL> must be a whole number. Exiting."
@@ -11,18 +15,18 @@ if [[ "${1}" && "${2}" && "${3}" ]]; then
   fi
   for (( i=0; i<=$(("${1}"-1)); i++ )); do
     read -p "Enter URL: " URL[i]
-    if [ -z "${URL[i]}" ]; then
+    if [[ -z "${URL[i]}" ]]; then
       break
     fi
   done
   for (( i=0; i<=$(("${1}"-1)); i++ )); do
-    if test -f "$((${2}+${i}))${3}"; then
+    if [[ -f "$((${2}+${i}))${3}" ]]; then
       echo "$((${2}+${i}))${3} exists. Exiting."
       exit
     fi
   done
   for (( i=0; i<=$(("${1}"-1)); i++ )); do
-    if [ ! -z "${URL[i]}" ]; then
+    if [[ ! -z "${URL[i]}" ]]; then
       wget -O "$((${2}+${i}))${3}" -c -q --show-progress "${URL[i]}" &
     fi
   done
@@ -41,3 +45,4 @@ else
   echo "An empty URL response ends the series. If a filename conflict occurs,"
   echo "the script exits to prevent overwriting. Correct and try again."
 fi
+
