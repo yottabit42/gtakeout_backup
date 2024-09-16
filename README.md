@@ -1,5 +1,7 @@
 # gtakeout_backup
 
+`get_takeout.sh` and `run_backup.sh` to assist downloading Google Takeout archives in parallel, and automate deduplication and backup of Google Takeout archives to local and remote targets.
+
 ## `get_takeout.sh`
 
 Script to assist downloading Google Takeout archives in parallel.
@@ -24,4 +26,4 @@ If your Internet Service Provider has insufficient peering with Google to suppor
 
 ## `run_backup.sh`
 
-Script to automate deduplication and backup of Google Takeout archives to remote cloud targets. Details and requires are contained as comments in the script.
+Script to automate deduplication and backup of Google Takeout archives to remote cloud targets. Details and requirements are contained as comments in the script.
