@@ -23,8 +23,7 @@ if [[ "${1}" && "${2}" && "${3}" ]]; then
   done
   for (( i=0; i<=$(("${1}"-1)); i++ )); do
     if [ ! -z "${URL[i]}" ]; then
-#      wget -O "$((${2}+${i}))${3}" -c -q --show-progress "${URL[i]}" &
-      echo -O "$((${2}+${i}))${3}" -c -q --show-progress "${URL[i]}" &
+      wget -O "$((${2}+${i}))${3}" -c -q --show-progress "${URL[i]}" &
     fi
   done
   wait
