@@ -8,7 +8,7 @@ Script to assist downloading Google Takeout archives in parallel.
 
 You can watch a demo showing how to copy the Takeout archive cURL out of Google Chrome's developer tools, and use of the `get_takeout.sh` script, from TODO(yottabit42): update video and URL. [my YouTube video](https://youtu.be/h5idAEJorIc).
 
-In my experience using GNU curl from the Linux command line (which is called by the `get_takeout.sh` script) results in more stable and faster downloads than downloading with Google Chrome directly.
+In my experience using GNU curl from the Linux command line (which is called by the `get_takeout.sh` script) results in faster and more stable downloads than downloading with Google Chrome directly.
 
 Notes:
 1. TODO(yottabit42): double check if this is still true. For this to work, the computer you're using to copy the URL, and the console you're using to download the URL, must come from the same public IP address (typical for home networks using NAT).
@@ -22,7 +22,7 @@ Recommended number of parallel downloads:
 * 301-500 Mbps download speed: 4
 * 501 Mbps download speed or higher: 6
 
-If your Internet Service Provider has insufficient peering with Google to support the speeds listed above, decrease the number of parallel downloads accordingly.
+The speeds above are download speeds, not the speed of the connection to your Internet Service Provider. If your Internet Service Provider has insufficient peering with Google to support the speeds listed above, decrease the number of parallel downloads accordingly.
 
 ## `run_backup.sh`
 
