@@ -6,9 +6,8 @@ echo
 echo "${0}"
 echo
 echo "Prompts for cURL(s) to download in parallel, using server-supplied"
-echo "filenames, modifying if necessary to prevent overwriting existing"
-echo "files with the same name. Up to 50 cURL entries are allowed. An empty"
-echo "entry ends the series."
+echo "filenames, overwriting existing files with the same name. Up to 50 cURL"
+echo "entries are allowed. An empty entry ends the series."
 echo
 echo "Note: you probably should not use 50 cURLs without really knowing what"
 echo "      you are doing. Typical home and business networks and machines can"
@@ -49,4 +48,4 @@ done
 trapCmd="echo -e '\nAn error occurred during download. Check your files:'; "
 trapCmd+="ls -lh; exit 1"
 trap "${trapCmd}" ERR
-eval curl --remote-name-all --parallel-immediate -JLOZf ${cURL[@]}
+eval curl --remote-name-all --parallel-immediate -CJLOZf ${cURL[@]}
