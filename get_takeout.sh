@@ -1,48 +1,53 @@
 #!/usr/bin/env bash
-#
+# get_takeout.sh by @yottabit42 (Jacob McDonald), rev. 2024-10-06 #1.
 
-if [[ ! $(which wget) ]]; then
-  echo "Please install 'wget' first, e.g., 'sudo apt install wget'. Exiting."
+echo "Usage:"
+echo
+echo "${0}"
+echo
+echo "Prompts for cURL(s) to download in parallel, using server-supplied"
+echo "filenames, modifying if necessary to prevent overwriting existing"
+echo "files with the same name. Up to 50 cURL entries are allowed. An empty"
+echo "entry ends the series."
+echo
+echo "Note: you probably should not use 50 cURLs without really knowing what"
+echo "      you are doing. Typical home and business networks and machines can"
+echo "      handle between 3 and 10 simultaneous downloads in parallel."
+echo
+
+if [[ ! $(which curl) ]]; then
+  echo "Please install 'curl' first, e.g., 'sudo apt install curl'. Exiting."
   exit
 fi
-if [[ "${1}" && "${2}" && "${3}" ]]; then
-  if [[ ! "${1}" =~ ^[0-9]+$ ]]; then
-    echo "<NUM_DL> must be a whole number. Exiting."
-    exit
-  elif [[ ! "${2}" =~ ^[0-9]+$ ]]; then
-    echo "<NUM_START> must be a whole number. Exiting."
-    exit
-  fi
-  for (( i=0; i<=$(("${1}"-1)); i++ )); do
-    read -p "Enter URL: " URL[i]
-    if [[ -z "${URL[i]}" ]]; then
+if [[ ! $(which cut) ]]; then
+  echo "Please install 'cut' first, e.g., 'sudo apt install cut'. Exiting."
+  exit
+fi
+for (( i=0; i<=49; i++ )); do
+  echo -n "Paste cURL, then press Enter, or Enter alone to end: "
+  while IFS='' read -r; do
+    if [[ "${REPLY: -1}" != '\' || -z "${REPLY}" ]]; then
+      cURL[i]+="${REPLY}"
       break
     fi
+    cURL[i]+="${REPLY}"
   done
-  for (( i=0; i<=$(("${1}"-1)); i++ )); do
-    if [[ -f "$((${2}+${i}))${3}" ]]; then
-      echo "$((${2}+${i}))${3} exists. Exiting."
-      exit
-    fi
-  done
-  for (( i=0; i<=$(("${1}"-1)); i++ )); do
-    if [[ ! -z "${URL[i]}" ]]; then
-      wget -O "$((${2}+${i}))${3}" -c -q --show-progress "${URL[i]}" &
-    fi
-  done
-  wait
-else
-  echo "Usage:"
-  echo
-  echo "${0} <NUM_DL> <NUM_START> <.EXT>"
-  echo
-  echo "Prompts for URLs to download in parallel, auto-incrementing filenames."
-  echo
-  echo "<NUM_DL>     Number of parallel downloads"
-  echo "<NUM_START>  Filename number to start with"
-  echo "<.EXT>       Filename extension to append"
-  echo
-  echo "An empty URL response ends the series. If a filename conflict occurs,"
-  echo "the script exits to prevent overwriting. Correct and try again."
+  cURL[i]="${cURL[i]//curl /}"
+  cURL[i]="${cURL[i]//[$'\t\r\n\\']/}"
+  if [[ -z "${cURL[i]}" ]]; then
+    break
+  fi
+done
+if [[ -z "${cURL[0]}" ]]; then
+  exit
 fi
-
+for (( i=1; i<=$(("${#cURL[@]}"-1)); i++ )); do
+  if [[ ! -z "${cURL[i]}" ]]; then
+    cURL[0]+=" "
+    cURL[0]+=$(echo "${cURL[i]}" | cut -d ' ' -f 1)
+  fi
+done
+trapCmd="echo -e '\nAn error occurred during download. Check your files:'; "
+trapCmd+="ls -lh; exit 1"
+trap "${trapCmd}" ERR
+eval curl --remote-name-all --parallel-immediate -JLOZ ${cURL[0]}
