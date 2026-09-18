@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# get_takeout.sh by @yottabit42 (Jacob McDonald), rev. 2024-10-06 #1.
+# get_takeout.sh by @yottabit42 (Jacob McDonald), rev. 2026-09-18 #1.
 
 echo "Usage:"
 echo
@@ -33,8 +33,8 @@ for (( i=0; i<=49; i++ )); do
     cURL[i]+="${REPLY}"
   done
   cURL[i]="${cURL[i]//curl /}"
-  cURL[i]="${cURL[i]//[$'\t\r\n\\']/}"
-  if [[ -z "${cURL[i]}" ]]; then
+  cURL[i]="${cURL[i]#--url }"
+  cURL[i]="${cURL[i]//[$'\t\r\n\\']/}"  if [[ -z "${cURL[i]}" ]]; then
     break
   fi
 done
