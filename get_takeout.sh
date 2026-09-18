@@ -34,7 +34,8 @@ for (( i=0; i<=49; i++ )); do
   done
   cURL[i]="${cURL[i]//curl /}"
   cURL[i]="${cURL[i]#--url }"
-  cURL[i]="${cURL[i]//[$'\t\r\n\\']/}"  if [[ -z "${cURL[i]}" ]]; then
+  cURL[i]="${cURL[i]//[$'\t\r\n\\']/}"
+  if [[ -z "${cURL[i]}" ]]; then
     break
   fi
 done
