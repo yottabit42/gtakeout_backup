@@ -6,15 +6,15 @@
 
 Script to assist downloading Google Takeout archives in parallel.
 
-You can watch a demo showing how to copy the Takeout archive cURL out of Google Chrome's developer tools, and use of the `get_takeout.sh` script, from [my YouTube video](https://youtu.be/CGAS24k1PQE).
+You can watch a demo showing how to copy the Takeout archive cURL out of Google Chrome's developer tools, and use of the `get_takeout.sh` script, from [my YouTube video](https://youtu.be/CGAS24k1PQE). Both Google Chrome (*Copy as cURL (bash)*) and Mozilla Firefox (*Copy as cURL (POSIX)*) are supported.
 
-In my experience using GNU curl from the Linux command line (which is called by the `get_takeout.sh` script) results in faster and more stable downloads than downloading with Google Chrome directly.
+In my experience using GNU curl from the Linux command line (which is called by the `get_takeout.sh` script) results in faster and more stable downloads than downloading with Google Chrome or Mozilla Firefox directly.
 
 Notes:
 1. You can only try to download each part 4 times before it is no longer valid.
 2. You must copy the URL and start the download within 10 minutes before the authentication times out.
 3. You must download all parts within 7 days before the archives are removed from Google Takeout.
-4. While not completely necessary, it's best to configure Google Chrome to ask where to save each download. This way you can cancel the save prompt without starting a download. If you don't do this, you should go to the Chrome Downloads page (Ctrl/Cmd+J) and cancel the downloads there. Avoid conflicts if you are downloading to the same computer and directory with Chrome and the wrapper script.
+4. While not completely necessary, it's best to configure your browser (e.g., Google Chrome or Mozilla Firefox) to ask where to save each download. This way you can cancel the save prompt without starting a download. If you don't do this, you should go to your browser's Downloads page (Ctrl/Cmd+J) and cancel the downloads there. Avoid conflicts if you are downloading to the same computer and directory with your browser and the wrapper script.
 
 Recommended number of parallel downloads:
 * 100 Mbps download speed or less: 2

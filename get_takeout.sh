@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# get_takeout.sh by @yottabit42 (Jacob McDonald), rev. 2026-09-18 #1.
+# get_takeout.sh by @yottabit42 (Jacob McDonald), rev. 2026-11-09 #1.
 
 echo "Usage:"
 echo
@@ -23,19 +23,25 @@ if [[ ! $(which cut) ]]; then
   echo "Please install 'cut' first, e.g., 'sudo apt install cut'. Exiting."
   exit
 fi
+eof=0
 for (( i=0; i<=49; i++ )); do
   echo -n "Paste cURL, then press Enter, or Enter alone to end: "
-  while IFS='' read -r; do
-    if [[ "${REPLY: -1}" != '\' || -z "${REPLY}" ]]; then
-      cURL[i]+="${REPLY}"
+  while true; do
+    if ! IFS='' read -r; then
+      eof=1
+    fi
+    REPLY="${REPLY%$'\r'}"
+    if [[ "${eof}" -eq 1 || "${REPLY: -1}" != '\' || -z "${REPLY}" ]]; then
+      cURL[i]+="${REPLY%\\}"
       break
     fi
-    cURL[i]+="${REPLY}"
+    cURL[i]+="${REPLY%\\}"
   done
-  cURL[i]="${cURL[i]//curl /}"
+  cURL[i]="${cURL[i]//[$'\t\r\n']/}"
+  cURL[i]="${cURL[i]#"${cURL[i]%%[![:space:]]*}"}"
+  cURL[i]="${cURL[i]#curl }"
   cURL[i]="${cURL[i]#--url }"
-  cURL[i]="${cURL[i]//[$'\t\r\n\\']/}"
-  if [[ -z "${cURL[i]}" ]]; then
+  if [[ -z "${cURL[i]}" || "${eof}" -eq 1 ]]; then
     break
   fi
 done
