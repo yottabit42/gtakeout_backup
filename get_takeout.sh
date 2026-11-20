@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# get_takeout.sh by @yottabit42 (Jacob McDonald), rev. 2026-11-19 #1.
+# get_takeout.sh by @yottabit42 (Jacob McDonald), rev. 2026-11-19 #2.
 
 echo "Usage:"
 echo
@@ -15,45 +15,256 @@ echo "      you are doing. Typical home and business networks and machines can"
 echo "      handle between 3 and 10 simultaneous downloads in parallel."
 echo
 
-for cmd in curl cut pv tar; do
+for cmd in curl pv tar; do
   if ! command -v "${cmd}" >/dev/null 2>&1; then
     echo "Please install '${cmd}' first, e.g., 'sudo apt install ${cmd}'. Exiting."
     exit 1
   fi
 done
+
+# Tokenize a shell-quoted cURL command (or bare URL) into PARSED_ARGS without eval.
+# Supports single quotes ('...'), ANSI-C quotes ($'...'), double quotes ("..."),
+# and backslash escapes. Returns 1 on unterminated quotes.
+parse_curl_args() {
+  local s="$1"
+  local len=${#s}
+  local pos=0
+  local ch next hex rest chunk closed
+  local token=""
+  local in_token=0
+  PARSED_ARGS=()
+
+  while (( pos < len )); do
+    ch="${s:pos:1}"
+
+    if [[ "${ch}" == [[:space:]] ]]; then
+      if (( in_token )); then
+        PARSED_ARGS+=("${token}")
+        token=""
+        in_token=0
+      fi
+      (( pos++ ))
+      continue
+    fi
+
+    in_token=1
+
+    # ANSI-C quoting: $'...'
+    if [[ "${ch}" == '$' && $(( pos + 1 )) -lt len && "${s:pos+1:1}" == "'" ]]; then
+      (( pos += 2 ))
+      closed=0
+      while (( pos < len )); do
+        rest="${s:pos}"
+        chunk="${rest%%[\'\\]*}"
+        if [[ -n "${chunk}" ]]; then
+          token+="${chunk}"
+          (( pos += ${#chunk} ))
+          continue
+        fi
+        ch="${s:pos:1}"
+        if [[ "${ch}" == "'" ]]; then
+          (( pos++ ))
+          closed=1
+          break
+        fi
+        (( pos++ ))
+        if (( pos >= len )); then
+          return 1
+        fi
+        next="${s:pos:1}"
+        case "${next}" in
+          a) token+=$'\a' ;;
+          b) token+=$'\b' ;;
+          e|E) token+=$'\e' ;;
+          f) token+=$'\f' ;;
+          n) token+=$'\n' ;;
+          r) token+=$'\r' ;;
+          t) token+=$'\t' ;;
+          v) token+=$'\v' ;;
+          \\|\'|\"|\?) token+="${next}" ;;
+          x)
+            hex="${s:pos+1:2}"
+            if [[ "${hex}" =~ ^[0-9a-fA-F]{1,2} ]]; then
+              hex="${BASH_REMATCH[0]}"
+              printf -v ch "\\x${hex}"
+              token+="${ch}"
+              (( pos += ${#hex} ))
+            else
+              token+='\x'
+            fi
+            ;;
+          *)
+            token+='\'
+            token+="${next}"
+            ;;
+        esac
+        (( pos++ ))
+      done
+      if (( ! closed )); then
+        return 1
+      fi
+      continue
+    fi
+
+    # Single-quoted string: '...'
+    if [[ "${ch}" == "'" ]]; then
+      (( pos++ ))
+      rest="${s:pos}"
+      if [[ "${rest}" != *"'"* ]]; then
+        return 1
+      fi
+      chunk="${rest%%\'*}"
+      token+="${chunk}"
+      (( pos += ${#chunk} + 1 ))
+      continue
+    fi
+
+    # Double-quoted string: "..."
+    if [[ "${ch}" == '"' ]]; then
+      (( pos++ ))
+      closed=0
+      while (( pos < len )); do
+        rest="${s:pos}"
+        chunk="${rest%%[\"\\]*}"
+        if [[ -n "${chunk}" ]]; then
+          token+="${chunk}"
+          (( pos += ${#chunk} ))
+          continue
+        fi
+        ch="${s:pos:1}"
+        if [[ "${ch}" == '"' ]]; then
+          (( pos++ ))
+          closed=1
+          break
+        fi
+        if (( pos + 1 < len )); then
+          next="${s:pos+1:1}"
+          if [[ "${next}" == '"' || "${next}" == '\' || "${next}" == '$' || "${next}" == '`' ]]; then
+            token+="${next}"
+            (( pos += 2 ))
+            continue
+          fi
+        fi
+        token+='\'
+        (( pos++ ))
+      done
+      if (( ! closed )); then
+        return 1
+      fi
+      continue
+    fi
+
+    # Backslash escape outside quotes
+    if [[ "${ch}" == '\' && $(( pos + 1 )) -lt len ]]; then
+      token+="${s:pos+1:1}"
+      (( pos += 2 ))
+      continue
+    fi
+
+    # Ordinary unquoted span (shell metacharacters like &, ;, | stay literal)
+    rest="${s:pos}"
+    chunk="${rest%%[[:space:]\'\"\\$]*}"
+    if [[ -n "${chunk}" ]]; then
+      token+="${chunk}"
+      (( pos += ${#chunk} ))
+    else
+      token+="${ch}"
+      (( pos++ ))
+    fi
+  done
+
+  if (( in_token )); then
+    PARSED_ARGS+=("${token}")
+  fi
+  return 0
+}
+
+extract_url_from_args() {
+  local k arg
+  EXTRACTED_URL=""
+  for (( k=0; k<${#PARSED_ARGS[@]}; k++ )); do
+    arg="${PARSED_ARGS[k]}"
+    case "${arg}" in
+      --url)
+        if (( k + 1 < ${#PARSED_ARGS[@]} )) && [[ "${PARSED_ARGS[k+1]}" =~ ^https?:// ]]; then
+          EXTRACTED_URL="${PARSED_ARGS[k+1]}"
+          return 0
+        fi
+        ;;
+      -H|--header|-b|--cookie|-e|--referer|-A|--user-agent|-X|--request|-d|--data|--data-raw|--data-binary|--data-urlencode|-u|--user|-x|--proxy)
+        (( k++ ))
+        ;;
+      *)
+        if [[ "${arg}" =~ ^https?:// ]]; then
+          EXTRACTED_URL="${arg}"
+          return 0
+        fi
+        ;;
+    esac
+  done
+  return 1
+}
+
 eof=0
+total_urls=0
+curl_args=()
 for (( i=0; i<=49; i++ )); do
   echo -n "Paste cURL, then press Enter, or Enter alone to end: "
+  raw_entry=""
   while true; do
     if ! IFS='' read -r; then
       eof=1
     fi
     REPLY="${REPLY%$'\r'}"
     if [[ "${eof}" -eq 1 || "${REPLY: -1}" != '\' || -z "${REPLY}" ]]; then
-      cURL[i]+="${REPLY%\\}"
+      raw_entry+="${REPLY%\\}"
       break
     fi
-    cURL[i]+="${REPLY%\\}"
+    raw_entry+="${REPLY%\\}"
   done
-  cURL[i]="${cURL[i]//[$'\t\r\n']/}"
-  cURL[i]="${cURL[i]#"${cURL[i]%%[![:space:]]*}"}"
-  cURL[i]="${cURL[i]#curl }"
-  cURL[i]="${cURL[i]#--url }"
-  if [[ -z "${cURL[i]}" || "${eof}" -eq 1 ]]; then
+  raw_entry="${raw_entry//[$'\t\r\n']/}"
+  raw_entry="${raw_entry#"${raw_entry%%[![:space:]]*}"}"
+  if [[ -z "${raw_entry}" ]]; then
+    break
+  fi
+
+  if ! parse_curl_args "${raw_entry}"; then
+    echo "Invalid entry (unterminated quote). Ignoring entry; paste again or press Enter alone to end."
+    if [[ "${eof}" -eq 1 ]]; then
+      break
+    fi
+    (( i-- ))
+    continue
+  fi
+
+  if (( ${#PARSED_ARGS[@]} > 0 )) && [[ "${PARSED_ARGS[0]}" == "curl" ]]; then
+    PARSED_ARGS=("${PARSED_ARGS[@]:1}")
+  fi
+
+  if ! extract_url_from_args; then
+    echo "Invalid entry (no http:// or https:// URL found). Ignoring entry; paste again or press Enter alone to end."
+    if [[ "${eof}" -eq 1 ]]; then
+      break
+    fi
+    (( i-- ))
+    continue
+  fi
+
+  if (( total_urls == 0 )); then
+    curl_args=("${PARSED_ARGS[@]}")
+  else
+    curl_args+=("${EXTRACTED_URL}")
+  fi
+  (( total_urls++ ))
+
+  if [[ "${eof}" -eq 1 ]]; then
     break
   fi
 done
-if [[ -z "${cURL[0]}" ]]; then
+
+if (( total_urls == 0 )); then
   exit
 fi
-total_urls=1
-for (( i=1; i<=$(("${#cURL[@]}"-1)); i++ )); do
-  if [[ ! -z "${cURL[i]}" ]]; then
-    cURL[0]+=" "
-    cURL[0]+=$(echo "${cURL[i]}" | cut -d ' ' -f 1)
-    (( total_urls++ ))
-  fi
-done
 
 declare -A pre_existing=()
 shopt -s nullglob dotglob
@@ -77,7 +288,12 @@ cleanup() {
 trap cleanup EXIT
 
 write_out_fmt=$'%{urlnum}\x1f%{exitcode}\x1f%{http_code}\x1f%{size_download}\x1f%{content_type}\x1f%{filename_effective}\n'
-eval "curl --remote-name-all --parallel-immediate ${no_clobber_flag} -JLOZ -w \"\${write_out_fmt}\" ${cURL[0]}" > "${curl_report}"
+curl_cmd=(curl --remote-name-all --parallel-immediate)
+if [[ -n "${no_clobber_flag}" ]]; then
+  curl_cmd+=("${no_clobber_flag}")
+fi
+curl_cmd+=(-JLOZ -w "${write_out_fmt}" "${curl_args[@]}")
+"${curl_cmd[@]}" > "${curl_report}"
 curl_rc=$?
 
 declare -a seen_url=()

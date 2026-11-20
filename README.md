@@ -10,7 +10,7 @@ You can watch a demo showing how to copy the Takeout archive cURL out of Google 
 
 In my experience using GNU curl from the Linux command line (which is called by the `get_takeout.sh` script) results in faster and more stable downloads than downloading with Google Chrome or Mozilla Firefox directly.
 
-Requirements: `bash`, `curl`, `cut`, `pv`, and `tar` (with Google Takeout archives exported in `.tgz` format).
+Requirements: `bash`, `curl`, `pv`, and `tar` (with Google Takeout archives exported in `.tgz` format).
 
 Behavior on failed or suspect downloads:
 * Passes `--no-clobber` (when supported by `curl`) so duplicate server-supplied filenames are renamed instead of overwritten, and protects pre-existing files in the working directory from deletion.
