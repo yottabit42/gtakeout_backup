@@ -36,3 +36,8 @@ The speeds above are download speeds, not the speed of the connection to your In
 ## `run_backup.sh`
 
 Script to automate deduplication and backup of Google Takeout archives to remote cloud targets. Details and requirements are contained as comments in the script.
+
+Deterministic deduplication behavior:
+* Uses `canonical_dir_patterns` (default: `("Photos from *")`) with `jdupes -O` (`--param-order`) and `-R` (`--recurse:`) to build a strictly disjoint, deterministically sorted directory list for both hardlinking (`dedupe_with_hardlinks`) and pre-upload duplicate hardlink removal (`delete_dupe_hardlinks`).
+* Canonical year folders (e.g., `Photos from YYYY`) are always prioritized ahead of album folders regardless of album names, preventing cloud sync tools (`gsutil rsync` / `rclone sync`) from deleting and re-uploading existing photos when a new alphabetically-earlier album containing the same photos is added in a future Takeout export.
+* Ancestor directories are scanned non-recursively (before `-R`) so loose files remain covered without parent/child path overlap, and datasets without matching canonical directories fall back cleanly to recursive deduplication of the mount root.

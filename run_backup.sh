@@ -70,6 +70,11 @@ dataset_mounts=("")  # e.g.: ("/mnt/dataset1" "/mnt/dataset2")
 backup_root=""  # e.g.: "/mnt/cloud_push"
 # This is where you want the Takeout archive extracted.
 extract_path=""  # e.g.: "/mnt/takeout_backup"
+# Directory name patterns prioritized as canonical locations when deduplicating.
+# Matching directories are passed FIRST to `jdupes -O` (with all remaining
+# non-overlapping paths passed second) so canonical folders are always preserved
+# over album folders regardless of album names.
+canonical_dir_patterns=("Photos from *")
 # This is the name of your GCS bucket for backup push.
 gcs_bucket=""  # e.g.: "gs://my-bucket-name"
 # This is the rclone remote target, e.g., AWS S3 Vault ARN.
@@ -104,10 +109,91 @@ extract() {
   echo; echo --; echo
 }
 
+# Populates the nameref array ($2) with strictly disjoint, deterministically
+# sorted jdupes path arguments covering every file and subdirectory under $1:
+#   - Ancestor directories of canonical matches are placed BEFORE `-R` so they
+#     are scanned non-recursively (covering loose files without overlapping
+#     their subdirectories, since modern jdupes disables file CLI arguments).
+#   - Canonical directories matching ${canonical_dir_patterns[@]} are placed
+#     FIRST after `-R` (recursive), followed by all remaining disjoint sibling
+#     subdirectories SECOND.
+# Because no parent/child overlap is ever emitted, this is safe to pass to
+# `jdupes -LNO` and `jdupes -dHNO` so `-O` always preserves canonical paths
+# (e.g., `Photos from YYYY`) over album folders regardless of album names.
+build_ordered_jdupes_args() {
+  local root="${1%/}"
+  local -n _result_ref="$2"
+  _result_ref=()
+
+  [[ -z "${root}" ]] && root="/"
+  [[ "${root}" == -* ]] && root="./${root}"
+
+  if (( ${#canonical_dir_patterns[@]} == 0 )); then
+    _result_ref=(-r -- "${root}")
+    return 0
+  fi
+
+  local -a name_args=()
+  local pat
+  for pat in "${canonical_dir_patterns[@]}"; do
+    if (( ${#name_args[@]} > 0 )); then
+      name_args+=(-o)
+    fi
+    name_args+=(-name "${pat}")
+  done
+
+  local -a canonical_dirs=()
+  local dir
+  while IFS= read -r -d '' dir; do
+    canonical_dirs+=("${dir}")
+  done < <(
+    find "${root}" -mindepth 1 -type d \( "${name_args[@]}" \) -prune -print0 \
+      | LC_ALL=C sort -z
+  )
+
+  if (( ${#canonical_dirs[@]} == 0 )); then
+    _result_ref=(-r -- "${root}")
+    return 0
+  fi
+
+  local -A is_canonical=()
+  local -A is_ancestor=()
+  local c cur
+  for c in "${canonical_dirs[@]}"; do
+    is_canonical["${c}"]=1
+    cur="${c%/*}"
+    while true; do
+      is_ancestor["${cur}"]=1
+      [[ "${cur}" == "${root}" ]] && break
+      cur="${cur%/*}"
+    done
+  done
+
+  local -a ancestor_dirs=()
+  local -a other_dirs=()
+  local anc child
+  while IFS= read -r -d '' anc; do
+    ancestor_dirs+=("${anc}")
+    while IFS= read -r -d '' child; do
+      if [[ "${anc}" == "${root}" && "${child}" == "${root}/.zfs" ]]; then
+        continue
+      fi
+      if [[ -z "${is_canonical[${child}]+x}" && -z "${is_ancestor[${child}]+x}" ]]; then
+        other_dirs+=("${child}")
+      fi
+    done < <(find "${anc}" -mindepth 1 -maxdepth 1 -type d -print0 | LC_ALL=C sort -z)
+  done < <(printf '%s\0' "${!is_ancestor[@]}" | LC_ALL=C sort -z)
+
+  _result_ref=("${ancestor_dirs[@]}" -R -- "${canonical_dirs[@]}" "${other_dirs[@]}")
+}
+
 dedupe_with_hardlinks() {
-  for f in ${dataset_mounts[@]}; do
+  local f
+  local -a jdupes_args=()
+  for f in "${dataset_mounts[@]}"; do
     echo "Replacing duplicates with hardlinks: ${f}."
-    time jdupes -LNOr "${f}"
+    build_ordered_jdupes_args "${f}" jdupes_args
+    time jdupes -LNO "${jdupes_args[@]}"
     echo "Finished replacing duplicates with hardlinks."
     echo; echo --; echo
   done
@@ -123,9 +209,12 @@ snapshot() {
 }
 
 delete_dupe_hardlinks() {
-  for f in ${dataset_mounts[@]}; do
+  local f
+  local -a jdupes_args=()
+  for f in "${dataset_mounts[@]}"; do
     echo "Deleting duplicate hardlinks: ${f}."
-    time jdupes -dHNOr "${f}"
+    build_ordered_jdupes_args "${f}" jdupes_args
+    time jdupes -dHNO "${jdupes_args[@]}"
     echo "Finished deleting duplicate hardlinks."
     echo; echo --; echo
   done
