@@ -10,6 +10,15 @@ You can watch a demo showing how to copy the Takeout archive cURL out of Google 
 
 In my experience using GNU curl from the Linux command line (which is called by the `get_takeout.sh` script) results in faster and more stable downloads than downloading with Google Chrome or Mozilla Firefox directly.
 
+Requirements: `bash`, `curl`, `cut`, `pv`, and `tar` (with Google Takeout archives exported in `.tgz` format).
+
+Behavior on failed or suspect downloads:
+* Passes `--no-clobber` (when supported by `curl`) so duplicate server-supplied filenames are renamed instead of overwritten, and protects pre-existing files in the working directory from deletion.
+* Tracks each parallel transfer's `curl` exit code, HTTP status, and `Content-Type` (catching HTTP `4xx`/`5xx` errors and expired-session `text/html` login redirects in addition to network/stream errors) without scanning healthy archives.
+* Runs `pv -- <file> | tar tvz > /dev/null` on each suspect/failed download after the parallel `curl` batch finishes:
+  * If `tar tvz` **passes**, the archive is kept and noted as salvaged (saving one of your 4 Takeout download attempts).
+  * If `tar tvz` **fails**, the corrupt/incomplete file is deleted and the script reports which 1-based download sequence numbers failed in paste order (e.g., `download 1, download 4`), lists remaining files (`ls -lh`), and exits non-zero.
+
 Notes:
 1. You can only try to download each part 4 times before it is no longer valid.
 2. You must copy the URL and start the download within 10 minutes before the authentication times out.
